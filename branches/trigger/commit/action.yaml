@@ -1,0 +1,84 @@
+name: Trigger branch from commit
+description: Trigger a Nuon app branch run from a commit SHA.
+
+branding:
+  icon: git-commit
+  color: purple
+
+inputs:
+  org_id:
+    description: Your Nuon org for the config file.
+    required: true
+  api_token:
+    description: "Your Nuon API token for the config file. Omit to authenticate with OIDC federation (requires `permissions: id-token: write`)."
+    required: false
+  app_id:
+    description: The Nuon App for the config file.
+    required: false
+  api_url:
+    description: The URL of the Nuon API for the config file.
+    required: true
+    default: https://api.nuon.co
+  oidc_audience:
+    description: The audience to request for the OIDC token. Defaults to api_url. Set this if your trust policy uses an audience that differs from api_url.
+    required: false
+  nuon_version:
+    description: The version of the CLI you would like to use. If none is provided, the version will be fetched from the api url.
+    required: false
+    default: latest
+  branch_id:
+    description: The ID or name of the app branch to trigger.
+    required: true
+  sha:
+    description: Commit SHA to deploy.
+    required: true
+  force:
+    description: Force rebuild all components.
+    required: false
+    default: "false"
+  no_wait:
+    description: Return immediately after triggering without launching the workflow viewer.
+    required: false
+    default: "true"
+
+outputs:
+  nuon_version:
+    description: The version of the CLI that was used for this command.
+    value: ${{ steps.version.outputs.nuon_version }}
+
+runs:
+  using: composite
+  steps:
+    - name: version
+      id: version
+      shell: bash
+      run: bash "${{ github.action_path }}/../../../scripts/setup.sh" version
+      env:
+        NUON_API_URL: ${{ inputs.api_url }}
+        NUON_VERSION: ${{ inputs.nuon_version }}
+    - name: install
+      shell: bash
+      run: bash "${{ github.action_path }}/../../../scripts/setup.sh" install
+    - name: config
+      shell: bash
+      run: bash "${{ github.action_path }}/../../../scripts/setup.sh" config
+      env:
+        NUON_API_URL: ${{ inputs.api_url }}
+        NUON_API_TOKEN: ${{ inputs.api_token }}
+        NUON_ORG_ID: ${{ inputs.org_id }}
+        NUON_APP_ID: ${{ inputs.app_id }}
+        NUON_OIDC_AUDIENCE: ${{ inputs.oidc_audience }}
+    - name: preflight
+      shell: bash
+      run: bash "${{ github.action_path }}/../../../scripts/setup.sh" preflight
+      env:
+        NUON_APP_ID: ${{ inputs.app_id }}
+    - name: trigger
+      shell: bash
+      run: bash "${{ github.action_path }}/../../../scripts/trigger.sh" commit
+      env:
+        NUON_APP_ID: ${{ inputs.app_id }}
+        NUON_BRANCH_ID: ${{ inputs.branch_id }}
+        NUON_RUN_REF: ${{ inputs.sha }}
+        NUON_FORCE: ${{ inputs.force }}
+        NUON_NO_WAIT: ${{ inputs.no_wait }}
